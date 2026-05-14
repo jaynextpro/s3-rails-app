@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>S3 Rails Upload</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+    h1 { color: #333; }
+    .form-group { margin: 20px 0; }
+    input[type=file] { display: block; margin: 10px 0; }
+    input[type=submit] { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+    #result { margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 4px; display: none; }
+    #result img { max-width: 100%; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Upload Image to S3</h1>
+  <%= form_with url: uploads_path, multipart: true, id: 'upload-form' do |f| %>
+    <div class="form-group">
+      <%= f.label :image, 'Select Image:' %>
+      <%= f.file_field :image, accept: 'image/*' %>
+    </div>
+    <%= f.submit 'Upload to S3' %>
+  <% end %>
+  <div id="result">
+    <strong id="message"></strong>
+    <br>
+    <img id="preview" src="" alt="Uploaded image" style="display:none;">
+  </div>
+  <script>
+    document.getElementById('upload-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      const res = await fetch('<%= uploads_path %>', { method: 'POST', body: formData, headers: { 'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content || '' } });
+      const data = await res.json();
+      document.getElementById('result').style.display = 'block';
+      document.getElementById('message').textContent = data.message;
+      if (data.data && data.data.url) {
+        const img = document.getElementById('preview');
+        img.src = data.data.url;
+        img.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+# ==============================================================================
+# Rails System Defaults
+# ==============================================================================
+/.bundle/
+/db/*.sqlite3
+/db/*.sqlite3-journal
+/db/*.sqlite3-wal
+/log/*
+/tmp/*
+!/log/.keep
+!/tmp/.keep
+
+# ==============================================================================
+# Storage and Uploads
+# ==============================================================================
+# Storage directory used by Active Storage
+/storage/*
+!/storage/.keep
+
+# Public uploads folder (CarrierWave, Paperclip, etc.)
+/public/uploads
+
+# ==============================================================================
+# Security and Credentials
+# ==============================================================================
+# Local environment variables
+.env
+*.env.local
+
+# Rails master key and credentials (unless checking in encrypted versions)
+/config/master.key
+/config/credentials/*.key
+
+# ==============================================================================
+# Frontend Dependencies & Compilers
+# ==============================================================================
+/node_modules
+/public/packs
+/public/packs-test
+/public/assets
+.es3cache
+.sass-cache
+.v8flags.*
+
+# ==============================================================================
+# Testing & Code Quality
+# ==============================================================================
+/coverage/
+/spec/examples.txt
+/.yardoc/
+/_yardoc/
+/doc/
+
+# ==============================================================================
+# IDEs, Editors, and OS Files
+# ==============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# VS Code
+.vscode/
+
+# JetBrains (RubyMine, WebStorm, etc.)
+.idea/
+
+# Vim
+*.swp
+*.swo
+
