@@ -21,15 +21,8 @@ jobs:
           source ~/.rvm/scripts/rvm
           bundle install
 
-      - name: Create .env file
-        run: touch .env
-
-      - name: Write secrets to .env
+      - name: Write .env
         run: echo "${{ secrets.RAILS_ENV_FILE }}" > .env
 
       - name: Restart Puma
-        run: |
-          PID_FILE="$HOME/s3-rails-app/tmp/pids/server.pid"
-          if [ -f "$PID_FILE" ]; then
-            kill -USR2 $(cat "$PID_FILE") 2>/dev/null || true
-          fi
+        run: sudo systemctl restart puma
