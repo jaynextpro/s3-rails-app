@@ -9,20 +9,16 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Ruby
+      - name: Pull latest code
         run: |
-          source ~/.rvm/scripts/rvm
-          rvm use 3.2.2
+          cd /home/ubuntu/s3-rails-app
+          git pull origin master
 
       - name: Install dependencies
         run: |
           source ~/.rvm/scripts/rvm
+          cd /home/ubuntu/s3-rails-app
           bundle install
-
-      - name: Write .env
-        run: echo "${{ secrets.RAILS_ENV_FILE }}" > .env
 
       - name: Restart Puma
         run: sudo systemctl restart puma
