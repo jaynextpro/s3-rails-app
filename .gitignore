@@ -74,3 +74,6 @@ Desktop.ini
 *.swp
 *.swo
 
+# Others
+_PipelineMapping/
+/log
