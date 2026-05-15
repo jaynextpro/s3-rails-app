@@ -1,0 +1,35 @@
+name: Rails CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        run: |
+          source ~/.rvm/scripts/rvm
+          rvm use 3.2.2
+
+      - name: Install dependencies
+        run: |
+          source ~/.rvm/scripts/rvm
+          bundle install
+
+      - name: Create .env file
+        run: touch .env
+
+      - name: Write secrets to .env
+        run: echo "${{ secrets.RAILS_ENV_FILE }}" > .env
+
+      - name: Restart Puma
+        run: |
+          PID_FILE="$HOME/s3-rails-app/tmp/pids/server.pid"
+          if [ -f "$PID_FILE" ]; then
+            kill -USR2 $(cat "$PID_FILE") 2>/dev/null || true
+          fi
