@@ -1,45 +1,274 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>S3 Rails Upload</title>
+<% content_for :title, "Subir imagen a S3" %>
+
+<% content_for :head do %>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
-    h1 { color: #333; }
-    .form-group { margin: 20px 0; }
-    input[type=file] { display: block; margin: 10px 0; }
-    input[type=submit] { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
-    #result { margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 4px; display: none; }
-    #result img { max-width: 100%; margin-top: 10px; }
+    :root {
+      --brand: #2563eb;
+      --brand-dark: #1d4ed8;
+      --bg: #eef2f9;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #d8dee9;
+      --danger: #dc2626;
+      --success: #16a34a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      background: linear-gradient(160deg, #eef2f9 0%, #dbe4f5 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .upload-page {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .upload-card {
+      width: 100%;
+      max-width: 480px;
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12);
+      padding: 36px 32px;
+    }
+    .upload-card__header { text-align: center; margin-bottom: 24px; }
+    .upload-card__icon {
+      width: 56px; height: 56px;
+      margin: 0 auto 14px;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--brand); color: #fff;
+      border-radius: 14px; font-size: 26px;
+    }
+    .upload-card h1 { margin: 0 0 6px; font-size: 22px; }
+    .upload-card__header p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .dropzone {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 6px; text-align: center;
+      padding: 32px 20px;
+      border: 2px dashed var(--border);
+      border-radius: 14px;
+      cursor: pointer;
+      transition: border-color .15s ease, background .15s ease;
+    }
+    .dropzone:hover, .dropzone.is-dragover { border-color: var(--brand); background: #f5f8ff; }
+    .dropzone.has-file { border-style: solid; border-color: var(--brand); background: #f5f8ff; }
+    .dropzone__title { font-weight: 600; font-size: 15px; }
+    .dropzone__title b { color: var(--brand); }
+    .dropzone__hint { font-size: 12.5px; color: var(--muted); }
+    .dropzone svg { color: var(--brand); margin-bottom: 4px; }
+
+    .visually-hidden {
+      position: absolute; width: 1px; height: 1px;
+      padding: 0; margin: -1px; overflow: hidden;
+      clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+    }
+
+    .field-error {
+      display: none;
+      margin: 12px 0 0;
+      color: var(--danger);
+      font-size: 13px;
+    }
+    .field-error.is-visible { display: block; }
+
+    .btn {
+      width: 100%;
+      margin-top: 18px;
+      padding: 13px 20px;
+      background: var(--brand);
+      color: #fff;
+      font-size: 15px; font-weight: 600;
+      border: none; border-radius: 10px;
+      cursor: pointer;
+      transition: background .15s ease;
+    }
+    .btn:hover:not(:disabled) { background: var(--brand-dark); }
+    .btn:disabled { opacity: .65; cursor: not-allowed; }
+
+    .result {
+      display: none;
+      margin-top: 22px;
+      padding: 16px;
+      border-radius: 12px;
+      font-size: 14px;
+    }
+    .result.is-visible { display: block; }
+    .result.is-success { background: #ecfdf3; color: var(--success); }
+    .result.is-error { background: #fef2f2; color: var(--danger); }
+    .result img {
+      display: none;
+      max-width: 100%;
+      margin-top: 12px;
+      border-radius: 10px;
+    }
   </style>
-</head>
-<body>
-  <h1>Upload Image to S3(New changes coming soon)</h1>
-  <%= form_with url: uploads_path, multipart: true, id: 'upload-form' do |f| %>
-    <div class="form-group">
-      <%= f.label :image, 'Select Image:' %>
-      <%= f.file_field :image, accept: 'image/*' %>
+<% end %>
+
+<main class="upload-page">
+  <section class="upload-card">
+    <header class="upload-card__header">
+      <div class="upload-card__icon" aria-hidden="true">&#9729;</div>
+      <h1>Subir imagen a S3</h1>
+      <p>Selecciona una imagen y la guardaremos en tu bucket de Amazon S3.</p>
+    </header>
+
+    <%= form_with url: uploads_path, multipart: true, id: "upload-form", html: { novalidate: true } do |f| %>
+      <label class="dropzone" id="dropzone" for="image-input">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+        <span class="dropzone__title" id="dropzone-title">
+          <b>Haz clic para elegir</b> o arrastra una imagen
+        </span>
+        <span class="dropzone__hint">JPG, PNG, GIF o WEBP &middot; m&aacute;x. 10 MB</span>
+      </label>
+      <%= f.file_field :image, accept: "image/*", id: "image-input", class: "visually-hidden" %>
+
+      <p class="field-error" id="field-error" role="alert"></p>
+
+      <%= f.submit "Subir a S3", id: "submit-btn", class: "btn" %>
+    <% end %>
+
+    <div id="result" class="result" role="status" aria-live="polite">
+      <strong id="message"></strong>
+      <img id="preview" src="" alt="Imagen subida">
     </div>
-    <%= f.submit 'Upload to S3' %>
-  <% end %>
-  <div id="result">
-    <strong id="message"></strong>
-    <br>
-    <img id="preview" src="" alt="Uploaded image" style="display:none;">
-  </div>
-  <script>
-    document.getElementById('upload-form').addEventListener('submit', async function(e) {
-      e.preventDefault();
-      const formData = new FormData(this);
-      const res = await fetch('<%= uploads_path %>', { method: 'POST', body: formData, headers: { 'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content || '' } });
-      const data = await res.json();
-      document.getElementById('result').style.display = 'block';
-      document.getElementById('message').textContent = data.message;
-      if (data.data && data.data.url) {
-        const img = document.getElementById('preview');
-        img.src = data.data.url;
-        img.style.display = 'block';
+  </section>
+</main>
+
+<script>
+  (function () {
+    var MAX_FILE_SIZE = 10 * 1024 * 1024;
+    var ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+    var form        = document.getElementById('upload-form');
+    var input       = document.getElementById('image-input');
+    var dropzone    = document.getElementById('dropzone');
+    var dzTitle     = document.getElementById('dropzone-title');
+    var submitBtn   = document.getElementById('submit-btn');
+    var fieldError  = document.getElementById('field-error');
+    var result      = document.getElementById('result');
+    var message     = document.getElementById('message');
+    var preview     = document.getElementById('preview');
+
+    function showFieldError(text) {
+      fieldError.textContent = text;
+      fieldError.classList.add('is-visible');
+    }
+
+    function clearFieldError() {
+      fieldError.textContent = '';
+      fieldError.classList.remove('is-visible');
+    }
+
+    function showResult(text, isSuccess) {
+      message.textContent = text;
+      result.className = 'result is-visible ' + (isSuccess ? 'is-success' : 'is-error');
+    }
+
+    // Returns an error string, or null if the file is valid.
+    function validate(file) {
+      if (!file) { return 'Por favor selecciona una imagen antes de subir.'; }
+      if (ALLOWED_TYPES.indexOf(file.type) === -1) {
+        return 'Formato no válido. Usa una imagen JPG, PNG, GIF o WEBP.';
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        return 'La imagen supera el tamaño máximo permitido de 10 MB.';
+      }
+      return null;
+    }
+
+    function refreshDropzone() {
+      var file = input.files[0];
+      if (file) {
+        dropzone.classList.add('has-file');
+        dzTitle.innerHTML = '<b>' + file.name + '</b>';
+      } else {
+        dropzone.classList.remove('has-file');
+        dzTitle.innerHTML = '<b>Haz clic para elegir</b> o arrastra una imagen';
+      }
+    }
+
+    input.addEventListener('change', function () {
+      clearFieldError();
+      refreshDropzone();
+    });
+
+    // Drag-and-drop support.
+    ['dragenter', 'dragover'].forEach(function (evt) {
+      dropzone.addEventListener(evt, function (e) {
+        e.preventDefault();
+        dropzone.classList.add('is-dragover');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function (evt) {
+      dropzone.addEventListener(evt, function (e) {
+        e.preventDefault();
+        dropzone.classList.remove('is-dragover');
+      });
+    });
+    dropzone.addEventListener('drop', function (e) {
+      if (e.dataTransfer && e.dataTransfer.files.length) {
+        input.files = e.dataTransfer.files;
+        clearFieldError();
+        refreshDropzone();
       }
     });
-  </script>
-</body>
-</html>
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      clearFieldError();
+
+      var file = input.files[0];
+      var error = validate(file);
+      if (error) {
+        showFieldError(error);
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.value = 'Subiendo…';
+
+      try {
+        var res = await fetch(form.action, {
+          method: 'POST',
+          body: new FormData(form),
+          headers: {
+            'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content || '',
+            'Accept': 'application/json'
+          }
+        });
+
+        var data;
+        try {
+          data = await res.json();
+        } catch (parseErr) {
+          throw new Error('El servidor devolvió una respuesta inesperada.');
+        }
+
+        showResult(data.message || (res.ok ? 'Listo.' : 'No se pudo subir la imagen.'), res.ok && data.success);
+
+        if (data.success && data.data && data.data.url) {
+          preview.src = data.data.url;
+          preview.style.display = 'block';
+        } else {
+          preview.style.display = 'none';
+        }
+      } catch (err) {
+        showResult(err.message || 'No se pudo conectar con el servidor.', false);
+        preview.style.display = 'none';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.value = 'Subir a S3';
+      }
+    });
+  })();
+</script>
