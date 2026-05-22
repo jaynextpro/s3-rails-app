@@ -10,6 +10,7 @@
       --muted: #6b7280;
       --border: #d8dee9;
       --danger: #dc2626;
+      --danger-dark: #b91c1c;
       --success: #16a34a;
     }
     * { box-sizing: border-box; }
@@ -90,6 +91,13 @@
     .btn:hover:not(:disabled) { background: var(--brand-dark); }
     .btn:disabled { opacity: .65; cursor: not-allowed; }
 
+    .btn--secondary {
+      background: #fff;
+      color: var(--brand);
+      border: 1px solid var(--border);
+    }
+    .btn--secondary:hover:not(:disabled) { background: #f5f8ff; }
+
     .result {
       display: none;
       margin-top: 22px;
@@ -106,6 +114,38 @@
       margin-top: 12px;
       border-radius: 10px;
     }
+
+    /* --- Object list / delete --- */
+    .divider { margin: 30px 0 0; border: none; border-top: 1px solid var(--border); }
+    .objects-title { font-size: 16px; margin: 22px 0 4px; }
+    .objects-note { font-size: 12.5px; color: var(--muted); margin: 0 0 14px; }
+    .objects-empty { font-size: 13px; color: var(--muted); margin-top: 14px; }
+
+    .object-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px; margin-top: 10px;
+      border: 1px solid var(--border); border-radius: 12px;
+    }
+    .object-item img {
+      width: 56px; height: 56px;
+      object-fit: cover; border-radius: 8px;
+      background: #f0f0f0;
+    }
+    .object-item__info { flex: 1; font-size: 12.5px; word-break: break-all; }
+    .object-item__info .name { font-weight: 600; }
+    .object-item__info .meta { color: var(--muted); margin-top: 2px; }
+
+    .btn--danger {
+      flex-shrink: 0;
+      padding: 7px 12px;
+      background: var(--danger); color: #fff;
+      font-size: 13px; font-weight: 600;
+      border: none; border-radius: 8px;
+      cursor: pointer;
+      transition: background .15s ease;
+    }
+    .btn--danger:hover:not(:disabled) { background: var(--danger-dark); }
+    .btn--danger:disabled { opacity: .65; cursor: not-allowed; }
   </style>
 <% end %>
 
@@ -141,6 +181,13 @@
       <strong id="message"></strong>
       <img id="preview" src="" alt="Imagen subida">
     </div>
+
+    <hr class="divider">
+
+    <h2 class="objects-title">Objetos en el bucket</h2>
+    <p class="objects-note">Los enlaces de vista previa son temporales y expiran a los 60 segundos &mdash; vuelve a pulsar "Listar objetos" para actualizarlos.</p>
+    <button type="button" id="list-btn" class="btn btn--secondary">Listar objetos</button>
+    <div id="objects"></div>
   </section>
 </main>
 
@@ -158,6 +205,12 @@
     var result      = document.getElementById('result');
     var message     = document.getElementById('message');
     var preview     = document.getElementById('preview');
+    var listBtn     = document.getElementById('list-btn');
+    var objectsDiv  = document.getElementById('objects');
+
+    function csrfToken() {
+      return document.querySelector('meta[name=csrf-token]')?.content || '';
+    }
 
     function showFieldError(text) {
       fieldError.textContent = text;
@@ -190,7 +243,8 @@
       var file = input.files[0];
       if (file) {
         dropzone.classList.add('has-file');
-        dzTitle.innerHTML = '<b>' + file.name + '</b>';
+        dzTitle.innerHTML = '<b></b>';
+        dzTitle.querySelector('b').textContent = file.name;
       } else {
         dropzone.classList.remove('has-file');
         dzTitle.innerHTML = '<b>Haz clic para elegir</b> o arrastra una imagen';
@@ -242,7 +296,7 @@
           method: 'POST',
           body: new FormData(form),
           headers: {
-            'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content || '',
+            'X-CSRF-Token': csrfToken(),
             'Accept': 'application/json'
           }
         });
@@ -270,5 +324,94 @@
         submitBtn.value = 'Subir a S3';
       }
     });
+
+    // --- List & delete bucket objects ---
+    function formatSize(bytes) {
+      if (bytes < 1024) { return bytes + ' B'; }
+      if (bytes < 1024 * 1024) { return (bytes / 1024).toFixed(1) + ' KB'; }
+      return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+    }
+
+    function showObjectsMessage(text) {
+      objectsDiv.innerHTML = '';
+      var p = document.createElement('p');
+      p.className = 'objects-empty';
+      p.textContent = text;
+      objectsDiv.appendChild(p);
+    }
+
+    function renderObject(obj) {
+      var item = document.createElement('div');
+      item.className = 'object-item';
+
+      var img = document.createElement('img');
+      img.src = obj.url;
+      img.alt = obj.key;
+
+      var info = document.createElement('div');
+      info.className = 'object-item__info';
+      var name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = obj.key;
+      var meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = formatSize(obj.size) + ' · ' + new Date(obj.last_modified).toLocaleString();
+      info.appendChild(name);
+      info.appendChild(meta);
+
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'btn--danger';
+      del.textContent = 'Eliminar';
+      del.addEventListener('click', function () { deleteObject(obj.key, item, del); });
+
+      item.appendChild(img);
+      item.appendChild(info);
+      item.appendChild(del);
+      objectsDiv.appendChild(item);
+    }
+
+    listBtn.addEventListener('click', async function () {
+      listBtn.disabled = true;
+      listBtn.textContent = 'Cargando…';
+      try {
+        var res = await fetch(form.action, { headers: { 'Accept': 'application/json' } });
+        var data = await res.json();
+        var objects = (data.data && data.data.objects) || [];
+        if (objects.length === 0) {
+          showObjectsMessage('El bucket está vacío.');
+        } else {
+          objectsDiv.innerHTML = '';
+          objects.forEach(renderObject);
+        }
+      } catch (err) {
+        showObjectsMessage('No se pudieron cargar los objetos.');
+      } finally {
+        listBtn.disabled = false;
+        listBtn.textContent = 'Listar objetos';
+      }
+    });
+
+    async function deleteObject(key, item, btn) {
+      if (!confirm('¿Eliminar "' + key + '" de S3? Esta acción no se puede deshacer.')) { return; }
+      btn.disabled = true;
+      btn.textContent = 'Eliminando…';
+      try {
+        var res = await fetch(form.action + '?key=' + encodeURIComponent(key), {
+          method: 'DELETE',
+          headers: { 'X-CSRF-Token': csrfToken(), 'Accept': 'application/json' }
+        });
+        var data = await res.json();
+        if (res.ok && data.success) {
+          item.remove();
+        } else {
+          throw new Error(data.message || 'No se pudo eliminar el objeto.');
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Eliminar';
+        alert(err.message || 'No se pudo eliminar el objeto.');
+      }
+    }
   })();
 </script>

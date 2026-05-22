@@ -1,9 +1,12 @@
 class UploadsController < ApplicationController
-  protect_from_forgery with: :null_session, only: [:create]
+  protect_from_forgery with: :null_session, only: [:create, :destroy]
   require 'aws-sdk-s3'
 
   MAX_FILE_SIZE = 10.megabytes
   ALLOWED_CONTENT_TYPES = %w[image/jpeg image/png image/gif image/webp].freeze
+
+  # Presigned object URLs are intentionally short-lived (60 seconds).
+  PRESIGNED_URL_EXPIRY = 60
 
   def new
   end
@@ -52,5 +55,41 @@ class UploadsController < ApplicationController
     Rails.logger.error("Upload failed: #{e.class} - #{e.message}")
     render json: { success: false, message: 'Ocurrió un error inesperado al subir la imagen.' },
            status: :internal_server_error
+  end
+
+  # GET /uploads — list every object in the bucket, each with a short-lived preview URL.
+  def index
+    s3 = s3_resource
+    signer = Aws::S3::Presigner.new(client: s3.client)
+
+    objects = s3.bucket(ENV['AWS_BUCKET_NAME']).objects.map do |obj|
+      {
+        key: obj.key,
+        size: obj.size,
+        last_modified: obj.last_modified,
+        url: signer.presigned_url(:get_object,
+                                  bucket: ENV['AWS_BUCKET_NAME'],
+                                  key: obj.key,
+                                  expires_in: PRESIGNED_URL_EXPIRY)
+      }
+    end
+
+    render json: { success: true, expires_in: PRESIGNED_URL_EXPIRY, data: { objects: objects } }
+  end
+
+  # DELETE /uploads?key=... — remove a single object from the bucket.
+  def destroy
+    s3_resource.bucket(ENV['AWS_BUCKET_NAME']).object(params[:key]).delete
+
+    render json: { success: true, message: 'El objeto se elimino correctamente!' }
+  end
+
+  private
+
+  def s3_resource
+    Aws::S3::Resource.new(
+      region: ENV['AWS_BUCKET_REGION'],
+      credentials: Aws::Credentials.new(ENV['AWS_ACCESS_KEY'], ENV['AWS_SECRET_KEY'])
+    )
   end
 end
