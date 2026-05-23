@@ -41,7 +41,7 @@ class UploadsController < ApplicationController
     url = signer.presigned_url(:get_object,
                                bucket: ENV['AWS_BUCKET_NAME'],
                                key: key,
-                               expires_in: 3600)
+                               expires_in: PRESIGNED_URL_EXPIRY)
 
     render json: { success: true, message: 'La imagen se subió correctamente!', data: { url: url } }
   rescue Aws::Errors::MissingCredentialsError, Aws::Errors::MissingRegionError
